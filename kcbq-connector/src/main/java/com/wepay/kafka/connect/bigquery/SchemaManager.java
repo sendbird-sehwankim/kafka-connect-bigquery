@@ -382,8 +382,10 @@ public class SchemaManager {
       }
     }
 
-    checkState(firstField.getName().equals(secondField.getName()));
-    checkState(firstField.getType() == secondField.getType());
+    checkState(firstField.getName().equals(secondField.getName()),
+            "Cannot perform union operation on two fields having different names");
+    checkState(firstField.getType() == secondField.getType(),
+            "Cannot perform union operation on two fields having different datatypes");
 
     Field.Builder retBuilder = firstField.toBuilder();
     if (isFieldRelaxation(firstField, secondField)) {
