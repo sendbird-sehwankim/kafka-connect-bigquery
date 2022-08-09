@@ -149,24 +149,6 @@ The `$KCBQ_TEST_FOLDER` variable can be supplied to specify which subfolder of t
 be used when testing the GCS batch loading feature; if not supplied, the top-level folder will be
 used.
 
-### Sample value for the environment variables
-- `KCBQ_TEST_PROJECT`: cloud-private-dev
-  - note: https://console.cloud.google.com/welcome?project=cloud-private-dev
-- `KCBQ_TEST_DATASET`: kcbq_test_dataset
-  - note: http://go/kcbq_test_dataset
-- `KCBQ_TEST_KEYFILE`: /tmp/creds.json
-  - note: run command `vault kv get v1/ci/kv/gcp/kcbq-cpd` and copy paste the content of key named "creds" into file /tmp/creds.json
-- `KCBQ_TEST_BUCKET`: kcbq_test_bucket
-  - note: make sure that this bucket (http://go/gcp-cpd-buckets) is not used for any other purpose as the test execution might delete it!
-
-Noting above in short one can use following to run the Integration Tests locally:
-```
-export KCBQ_TEST_PROJECT=cloud-private-dev
-export KCBQ_TEST_DATASET=kcbq_test_dataset
-export KCBQ_TEST_KEYFILE=/tmp/creds.json
-export KCBQ_TEST_BUCKET=kcbq_test_bucket
-```
-
 ### Adding new GCP Credentials & BigQuery DataSet
 This section is optional in case one wants to use a different GCP project and generate new creds for that
 - **Create a GCP Service Account:** Follow instructions from https://cloud.google.com/iam/docs/creating-managing-service-accounts e.g.
@@ -175,18 +157,18 @@ gcloud iam service-accounts create kcbq-test --description="service account key 
 ```
 - **Create Service Account Keys:** Follow instructions from https://cloud.google.com/iam/docs/creating-managing-service-account-keys e.g.
 ```
-gcloud iam service-accounts keys create /tmp/creds.json --iam-account=kcbq-test@cloud-private-dev.iam.gserviceaccount.com
+gcloud iam service-accounts keys create /tmp/creds.json --iam-account=kcbq-test@<GCP_PROJECT_NAME>.iam.gserviceaccount.com
 ```
 - **Give BigQuery & Storage Admin Permissions to Service Account:**  
-  - Open https://console.cloud.google.com/iam-admin/iam?project=cloud-private-dev (change project as applicable)
-  - Click on Add and enter New Principal as created above e.g. `kcbq-test@cloud-private-dev.iam.gserviceaccount.com`
+  - Open https://console.cloud.google.com/iam-admin/iam?project=<GCP_PROJECT_NAME>
+  - Click on Add and enter New Principal as created above e.g. `kcbq-test@<GCP_PROJECT_NAME>.iam.gserviceaccount.com`
   - Add following 2 roles from "Select a role" drop down menu:
     - BigQuery -> BigQuery Admin
     - Cloud Storage -> Storage Admin
 - **Add a BigQuery DataSet into the Project:**
-  - Open https://console.cloud.google.com/bigquery?project=cloud-private-dev (change project as applicable)
-  -  Click on the 3 vertical dots against the project name and click on "Create dataset" and follow the steps there.
-s
+  - Open https://console.cloud.google.com/bigquery?project=<GCP_PROJECT_NAME>
+  - Click on the 3 vertical dots against the project name and click on "Create dataset" and follow the steps there.
+
 ### Running the Integration Tests
 
 ```bash
