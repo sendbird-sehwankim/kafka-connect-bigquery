@@ -45,10 +45,14 @@ public class ErrantRecordsManager {
         this.errantRecordReporter = errantRecordReporter;
     }
 
-    public boolean hasExceptionsToSendToDLQ(Exception e) {
+    public boolean errorToSendToDLQ(String error) {
         if (!enabled) { return false; }
-        Matcher matcher = regexPattern.matcher(e.getMessage());
+        Matcher matcher = regexPattern.matcher(error);
         return matcher.find();
+    }
+
+    public boolean hasExceptionsToSendToDLQ(Exception e) {
+        return this.errorToSendToDLQ(e.getMessage());
     }
 
     public boolean isEnabled() {

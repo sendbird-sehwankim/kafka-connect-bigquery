@@ -153,8 +153,11 @@ public abstract class BigQueryWriter {
 
           BigQueryConnectException e = new BigQueryConnectException(table.toString(), failedRowsMap);
 
+          // we don't accumulate the failed rows at this point as we'll exit with this final exception
+          filterFailedRowsMap(rows, failedRowsMap, invalidRecords);
+          // but we filter the rows going to the DLQ
           if (this.errantRecordsManager.isEnabled() && this.errantRecordsManager.hasExceptionsToSendToDLQ(e)) {
-            return new ErrantRecordsContext(rows.keySet(), e);
+            return new ErrantRecordsContext(invalidRecords, e);
           }
 
           // throw an exception in case of complete failure
@@ -197,14 +200,13 @@ public abstract class BigQueryWriter {
 
     for (SinkRecord invalidRecord : rows.keySet()) {
       String failureReason = failedRowsMap.get(i).get(0).getReason();
-      if (!failureReason.equals(REASON_STOPPED)) {
+      if (!failureReason.equals(REASON_STOPPED) && (this.errantRecordsManager.errorToSendToDLQ(failureReason))) {
         partialFailureInvalidRecords.add(invalidRecord);
         // remove from rows
         rowsToRemove.add(invalidRecord);
         // add to the fresh failedRowsMap (to be used to construct the most recent exception)
         newFailedRowsMap.put(i, failedRowsMap.get(i));
       }
-
       i++;
     }
 
