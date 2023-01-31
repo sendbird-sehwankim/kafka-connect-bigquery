@@ -62,7 +62,7 @@ public class SchemaManager {
   private static final Logger logger = LoggerFactory.getLogger(SchemaManager.class);
 
   private final SchemaRetriever schemaRetriever;
-  private final SchemaConverter<com.google.cloud.bigquery.Schema> schemaConverter;
+  private final SchemaConverter<com.google.cloud.bigquery.Schema, Schema> schemaConverter;
   private final BigQuery bigQuery;
   private final boolean allowNewBQFields;
   private final boolean allowBQRequiredFieldRelaxation;
@@ -101,7 +101,7 @@ public class SchemaManager {
    */
   public SchemaManager(
       SchemaRetriever schemaRetriever,
-      SchemaConverter<com.google.cloud.bigquery.Schema> schemaConverter,
+      SchemaConverter<com.google.cloud.bigquery.Schema, Schema> schemaConverter,
       BigQuery bigQuery,
       boolean allowNewBQFields,
       boolean allowBQRequiredFieldRelaxation,
@@ -135,7 +135,7 @@ public class SchemaManager {
 
   private SchemaManager(
       SchemaRetriever schemaRetriever,
-      SchemaConverter<com.google.cloud.bigquery.Schema> schemaConverter,
+      SchemaConverter<com.google.cloud.bigquery.Schema, Schema> schemaConverter,
       BigQuery bigQuery,
       boolean allowNewBQFields,
       boolean allowBQRequiredFieldRelaxation,

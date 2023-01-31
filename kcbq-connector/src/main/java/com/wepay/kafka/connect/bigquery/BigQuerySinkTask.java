@@ -19,22 +19,20 @@
 
 package com.wepay.kafka.connect.bigquery;
 
-import com.google.cloud.bigquery.BigQuery;
-import com.google.cloud.bigquery.BigQueryException;
+import com.google.cloud.bigquery.*;
 import com.google.cloud.bigquery.InsertAllRequest.RowToInsert;
-import com.google.cloud.bigquery.StandardTableDefinition;
-import com.google.cloud.bigquery.Table;
-import com.google.cloud.bigquery.TableId;
-import com.google.cloud.bigquery.TimePartitioning;
 import com.google.cloud.bigquery.TimePartitioning.Type;
 import com.google.cloud.storage.Bucket;
+import com.google.cloud.bigquery.storage.v1.*;
 import com.google.cloud.storage.BucketInfo;
 import com.google.cloud.storage.Storage;
 import com.google.common.annotations.VisibleForTesting;
 import com.wepay.kafka.connect.bigquery.api.SchemaRetriever;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkTaskConfig;
+import com.wepay.kafka.connect.bigquery.convert.BigQuerySchemaConverter;
 import com.wepay.kafka.connect.bigquery.convert.SchemaConverter;
+import com.wepay.kafka.connect.bigquery.convert.WriteApiSchemaConverter;
 import com.wepay.kafka.connect.bigquery.utils.FieldNameSanitizer;
 import com.wepay.kafka.connect.bigquery.utils.PartitionedTableId;
 import com.wepay.kafka.connect.bigquery.utils.SinkRecordConverter;
@@ -51,10 +49,12 @@ import com.wepay.kafka.connect.bigquery.write.row.BigQueryWriter;
 import com.wepay.kafka.connect.bigquery.write.row.GCSToBQWriter;
 import com.wepay.kafka.connect.bigquery.write.row.SimpleBigQueryWriter;
 import com.wepay.kafka.connect.bigquery.write.row.UpsertDeleteBigQueryWriter;
-import java.io.IOException;
+
+import com.wepay.kafka.connect.bigquery.write.storageApi.BigQueryWriteSettingsBuilder;
+import com.wepay.kafka.connect.bigquery.write.storageApi.StorageApiDefaultStream;
+import com.wepay.kafka.connect.bigquery.write.storageApi.StorageApiStreamingBase;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
-import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.common.record.TimestampType;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.errors.RetriableException;
@@ -72,7 +72,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.TOPIC2TABLE_MAP_CONFIG;
 import static com.wepay.kafka.connect.bigquery.utils.TableNameUtils.intTable;
 
 /**
@@ -87,12 +86,16 @@ public class BigQuerySinkTask extends SinkTask {
   private SchemaRetriever schemaRetriever;
   private BigQueryWriter bigQueryWriter;
   private GCSToBQWriter gcsToBQWriter;
+
+  private StorageApiStreamingBase storageApiWriter;
   private BigQuerySinkTaskConfig config;
   private SinkRecordConverter recordConverter;
 
   private boolean useMessageTimeDatePartitioning;
   private boolean usePartitionDecorator;
   private boolean sanitize;
+
+  private boolean useStorageApi;
   private boolean upsertDelete;
   private MergeBatches mergeBatches;
   private MergeQueries mergeQueries;
@@ -105,6 +108,7 @@ public class BigQuerySinkTask extends SinkTask {
   
   private final BigQuery testBigQuery;
   private final Storage testGcs;
+
   private final SchemaManager testSchemaManager;
 
   private final UUID uuid = UUID.randomUUID();
@@ -167,13 +171,19 @@ public class BigQuerySinkTask extends SinkTask {
 
   @Override
   public Map<TopicPartition, OffsetAndMetadata> preCommit(Map<TopicPartition, OffsetAndMetadata> offsets) {
+    logger.info("Framework Offset : " + offsets);
     if (upsertDelete) {
       Map<TopicPartition, OffsetAndMetadata> result = mergeBatches.latestOffsets();
       checkQueueSize();
       return result;
     }
+//    if(useStorageApi) {
+//      Map<TopicPartition, OffsetAndMetadata> taskOffsets =  storageApiWriter.getOffsets();
+//      logger.info("Task Offsets : " + taskOffsets);
+//      return taskOffsets;
+//    }
 
-    flush(offsets);
+    //flush(offsets);
     return offsets;
   }
 
@@ -257,7 +267,13 @@ public class BigQuerySinkTask extends SinkTask {
     for (SinkRecord record : records) {
       if (record.value() != null || config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)) {
         PartitionedTableId table = getRecordTable(record);
-        if (!tableWriterBuilders.containsKey(table)) {
+        if(useStorageApi) {
+          TableName tableName = TableName.of("cloud-private-dev", table.getDataset(), table.getBaseTableName());
+          Schema tableSchema = new BigQuerySchemaConverter(false, true)
+                  .convertSchema(schemaRetriever.retrieveValueSchema(record));
+          storageApiWriter.appendRows(tableName, tableSchema, record);
+          continue;
+        }else if (!tableWriterBuilders.containsKey(table)) {
           TableWriterBuilder tableWriterBuilder;
           if (config.getList(BigQuerySinkConfig.ENABLE_BATCH_CONFIG).contains(record.topic())) {
             String topic = record.topic();
@@ -380,7 +396,7 @@ public class BigQuerySinkTask extends SinkTask {
 
   private SchemaManager newSchemaManager() {
     schemaRetriever = config.getSchemaRetriever();
-    SchemaConverter<com.google.cloud.bigquery.Schema> schemaConverter =
+    SchemaConverter<com.google.cloud.bigquery.Schema, org.apache.kafka.connect.data.Schema> schemaConverter =
         config.getSchemaConverter();
     Optional<String> kafkaKeyFieldName = config.getKafkaKeyFieldName();
     Optional<String> kafkaDataFieldName = config.getKafkaDataFieldName();
@@ -466,10 +482,10 @@ public class BigQuerySinkTask extends SinkTask {
     logger.trace("task.start()");
     stopped = false;
     config = new BigQuerySinkTaskConfig(properties);
-
     upsertDelete = config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)
         || config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG);
 
+    useStorageApi = config.getBoolean(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG);
     bigQuery = new AtomicReference<>();
     schemaManager = new AtomicReference<>();
 
@@ -500,6 +516,10 @@ public class BigQuerySinkTask extends SinkTask {
       mergeQueries =
           new MergeQueries(config, mergeBatches, executor, getBigQuery(), getSchemaManager(), context);
       maybeStartMergeFlushTask();
+    } else if (useStorageApi) {
+      BigQueryWriteSettings writeSettings = new BigQueryWriteSettingsBuilder().withConfig(config).build();
+      SchemaConverter<TableSchema, Schema> schemaConverter = new WriteApiSchemaConverter();
+      storageApiWriter = new StorageApiDefaultStream(writeSettings, schemaConverter);
     }
 
     recordConverter = getConverter(config);

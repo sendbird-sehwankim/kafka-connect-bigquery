@@ -22,6 +22,10 @@ package com.wepay.kafka.connect.bigquery.convert;
 import com.google.cloud.bigquery.FieldList;
 import com.google.cloud.bigquery.LegacySQLTypeName;
 
+import com.google.cloud.bigquery.StandardSQLTypeName;
+import com.google.cloud.bigquery.storage.v1.TableFieldSchema;
+import com.google.cloud.bigquery.storage.v1.TableSchema;
+import com.wepay.kafka.connect.bigquery.constants.SchemaConstants;
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.DebeziumLogicalConverters;
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.KafkaLogicalConverters;
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.LogicalConverterRegistry;
@@ -43,7 +47,7 @@ import java.util.stream.Stream;
  * Class for converting from {@link Schema Kafka Connect Schemas} to
  * {@link com.google.cloud.bigquery.Schema BigQuery Schemas}.
  */
-public class BigQuerySchemaConverter implements SchemaConverter<com.google.cloud.bigquery.Schema> {
+public class BigQuerySchemaConverter implements SchemaConverter<com.google.cloud.bigquery.Schema, Schema> {
 
   /**
    * The name of the field that contains keys from a converted Kafka Connect map.
@@ -55,32 +59,12 @@ public class BigQuerySchemaConverter implements SchemaConverter<com.google.cloud
    */
   public static final String MAP_VALUE_FIELD_NAME = "value";
 
-  private static final Map<Schema.Type, LegacySQLTypeName> PRIMITIVE_TYPE_MAP;
+  private static final Map<Schema.Type, LegacySQLTypeName> PRIMITIVE_TYPE_MAP = SchemaConstants.PRIMITIVE_TYPE_MAP;
 
   static {
     // force registration
     new DebeziumLogicalConverters();
     new KafkaLogicalConverters();
-
-    PRIMITIVE_TYPE_MAP = new HashMap<>();
-    PRIMITIVE_TYPE_MAP.put(Schema.Type.BOOLEAN,
-                           LegacySQLTypeName.BOOLEAN);
-    PRIMITIVE_TYPE_MAP.put(Schema.Type.FLOAT32,
-                           LegacySQLTypeName.FLOAT);
-    PRIMITIVE_TYPE_MAP.put(Schema.Type.FLOAT64,
-                           LegacySQLTypeName.FLOAT);
-    PRIMITIVE_TYPE_MAP.put(Schema.Type.INT8,
-                           LegacySQLTypeName.INTEGER);
-    PRIMITIVE_TYPE_MAP.put(Schema.Type.INT16,
-                           LegacySQLTypeName.INTEGER);
-    PRIMITIVE_TYPE_MAP.put(Schema.Type.INT32,
-                           LegacySQLTypeName.INTEGER);
-    PRIMITIVE_TYPE_MAP.put(Schema.Type.INT64,
-                           LegacySQLTypeName.INTEGER);
-    PRIMITIVE_TYPE_MAP.put(Schema.Type.STRING,
-                           LegacySQLTypeName.STRING);
-    PRIMITIVE_TYPE_MAP.put(Schema.Type.BYTES,
-                           LegacySQLTypeName.BYTES);
   }
 
   private final boolean allFieldsNullable;

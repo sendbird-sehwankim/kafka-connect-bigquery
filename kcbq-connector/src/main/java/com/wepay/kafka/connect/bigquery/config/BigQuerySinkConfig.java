@@ -329,6 +329,13 @@ public class BigQuerySinkConfig extends AbstractConfig {
       + "tables, and periodic merge flushes. Row-matching will be performed based on the contents " 
       + "of record keys.";
 
+  public static final String USE_STORAGE_WRITE_API_CONFIG = "useStorageWriteApi";
+
+  private static final ConfigDef.Type USE_STORAGE_WRITE_API_TYPE =             ConfigDef.Type.BOOLEAN;
+  public static final boolean USE_STORAGE_WRITE_API_DEFAULT =                  true;
+  private static final ConfigDef.Importance USE_STORAGE_WRITE_API_IMPORTANCE = ConfigDef.Importance.LOW;
+  private static final String USE_STORAGE_WRITE_API_DOC =
+          "Use Google's New Storage Write API for data streaming. Not available for batch/upsert mode";
   public static final String DELETE_ENABLED_CONFIG =                    "deleteEnabled";
   private static final ConfigDef.Type DELETE_ENABLED_TYPE =             ConfigDef.Type.BOOLEAN;
   public static final boolean DELETE_ENABLED_DEFAULT =                  false;
@@ -821,7 +828,13 @@ public class BigQuerySinkConfig extends AbstractConfig {
             BIGQUERY_PARTITION_EXPIRATION_VALIDATOR,
             BIGQUERY_PARTITION_EXPIRATION_IMPORTANCE,
             BIGQUERY_PARTITION_EXPIRATION_DOC
-        ).defineInternal(
+        ).define(
+                    USE_STORAGE_WRITE_API_CONFIG,
+                    USE_STORAGE_WRITE_API_TYPE,
+                    USE_STORAGE_WRITE_API_DEFAULT,
+                    USE_STORAGE_WRITE_API_IMPORTANCE,
+                    USE_STORAGE_WRITE_API_DOC
+            ).defineInternal(
                     CONNECTOR_RUNTIME_PROVIDER_CONFIG,
                     CONNECTOR_RUNTIME_PROVIDER_TYPE,
                     CONNECTOR_RUNTIME_PROVIDER_DEFAULT,
@@ -914,7 +927,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
    * Return a new instance of the configured Schema Converter.
    * @return a {@link SchemaConverter} for BigQuery.
    */
-  public SchemaConverter<Schema> getSchemaConverter() {
+  public SchemaConverter<Schema, org.apache.kafka.connect.data.Schema> getSchemaConverter() {
     return new BigQuerySchemaConverter(
         getBoolean(ALL_BQ_FIELDS_NULLABLE_CONFIG),
         getBoolean(SANITIZE_FIELD_NAME_CONFIG));
