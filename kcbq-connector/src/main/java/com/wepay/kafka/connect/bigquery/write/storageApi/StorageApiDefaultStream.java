@@ -22,69 +22,27 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 public class StorageApiDefaultStream extends StorageApiStreamingBase {
     private static final Logger logger = LoggerFactory.getLogger(StorageApiDefaultStream.class);
+
     private JsonStreamWriter writer;
 
-    Map<TopicPartition, OffsetAndMetadata> offsets = new HashMap<>();
-    Set<Object> responses = new HashSet<>();
-    private boolean initialised = false;
-    private final SchemaConverter<TableSchema, Schema> writeApiSchemaConverter;
-
-    private final RecordConverter<JSONObject> recordConverter = new WriteApiRecordConverter();
-    public StorageApiDefaultStream(BigQueryWriteSettings writeSettings, SchemaConverter<TableSchema, Schema> schemaConverter) {
-        super(writeSettings);
-        this.writeApiSchemaConverter = schemaConverter;
-        //this.recordConverter =
-    }
-
-
-    @Override
-    public void initialize(TableName tableName, Schema tableSchema) throws IOException, Descriptors.DescriptorValidationException, InterruptedException {
-        BigQueryWriteClient writeClient = BigQueryWriteClient.create(getWriteSettings());
-        mayBeCreateTable(tableName, tableSchema);
-
-        BigQuery bigquery = BigQueryOptions.getDefaultInstance().getService();
-        Table table = bigquery.getTable(tableName.getDataset(), tableName.getTable());
-        Schema schema = table.getDefinition().getSchema();
-        TableSchema recordSchema = writeApiSchemaConverter.convertSchema(schema);
-
-        writer = JsonStreamWriter.newBuilder(tableName.toString(), recordSchema, writeClient).build();
-        initialised = true;
-    }
-
-    public void mayBeCreateTable(TableName tableName, Schema tableSchema) {
-        BigQuery bigquery = BigQueryOptions.getDefaultInstance().getService();
-
-        // Create a table that uses this schema.
-        TableId tableId = TableId.of(tableName.getProject(), tableName.getDataset(), tableName.getTable());
-        Table table = bigquery.getTable(tableId);
-        if (table == null) {
-            TableInfo tableInfo =
-                    TableInfo.newBuilder(tableId, StandardTableDefinition.of(tableSchema)).build();
-            bigquery.create(tableInfo);
-        }
+    public StorageApiDefaultStream(BigQuery bigQuery, int retry, long retryWait, BigQueryWriteSettings writeSettings) {
+        super(bigQuery, retry, retryWait, writeSettings);
     }
 
     @Override
-    public void appendRows(TableName tableName, Schema tableSchema, SinkRecord row) {
-        try {
-            if (!initialised)
-                initialize(tableName, tableSchema);
-        } catch (IOException | Descriptors.DescriptorValidationException | InterruptedException e) {
-            throw new RuntimeException(e);
-        }
+    public void appendRows(TableName tableName, TableSchema recordSchema, List<Object[]> rows) {
+        JsonStreamWriter writer;
         JSONArray jsonArr = new JSONArray();
-        jsonArr.put(recordConverter.convertRecord(row, KafkaSchemaRecordType.VALUE));
         try {
+            writer = JsonStreamWriter.newBuilder(tableName.toString(), recordSchema, getWriteClient()).build();
+            rows.forEach(item -> jsonArr.put(item[1]));
             ApiFuture<AppendRowsResponse> response = writer.append(jsonArr);
             AppendRowsResponse writeResult = response.get();
             logger.info("Result : " + writeResult);
@@ -105,8 +63,6 @@ public class StorageApiDefaultStream extends StorageApiStreamingBase {
              * if not , then wait for it to finish
              * listen to callback and on completion, remove from collection and notify //ApiFutures.addCallback(response, new WriterCallback(row), MoreExecutors.directExecutor());
              */
-
-
         } catch (Descriptors.DescriptorValidationException | InterruptedException | IOException e) {
             throw new RuntimeException(e);
         } catch (ExecutionException e) {
@@ -131,31 +87,5 @@ public class StorageApiDefaultStream extends StorageApiStreamingBase {
             }
         }
     }
-//    @Override
-//    public Map<TopicPartition, OffsetAndMetadata> getOffsets() {
-//        System.out.println("Offsets currently saved "+ offsets.values());
-//       return offsets;
-//    }
 
-//    public class WriterCallback implements ApiFutureCallback<AppendRowsResponse> {
-//
-//        SinkRecord row;
-//        WriterCallback(SinkRecord row) {
-//         this.row = row;
-//        }
-//        @Override
-//        public void onFailure(Throwable t) {
-//            System.out.println(t.getMessage());
-//        }
-//
-//
-//        @Override
-//        public void onSuccess(AppendRowsResponse result) {
-//            System.out.println("Offset : " + row.kafkaOffset());
-//            offsets.put(
-//                    new TopicPartition(row.topic(), row.kafkaPartition()),
-//                    new OffsetAndMetadata(row.kafkaOffset()));
-//            responses.remove(this.row);
-//        }
-//    }
 }

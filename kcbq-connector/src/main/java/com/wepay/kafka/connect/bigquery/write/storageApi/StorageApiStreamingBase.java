@@ -3,10 +3,8 @@ package com.wepay.kafka.connect.bigquery.write.storageApi;
 import com.google.api.gax.core.CredentialsProvider;
 import com.google.api.gax.core.FixedCredentialsProvider;
 import com.google.auth.Credentials;
-import com.google.cloud.bigquery.Schema;
-import com.google.cloud.bigquery.storage.v1.BigQueryWriteSettings;
-import com.google.cloud.bigquery.storage.v1.TableName;
-import com.google.cloud.bigquery.storage.v1.TableSchema;
+import com.google.cloud.bigquery.*;
+import com.google.cloud.bigquery.storage.v1.*;
 import com.google.protobuf.Descriptors;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
@@ -18,19 +16,45 @@ import java.util.Map;
 
 public abstract class StorageApiStreamingBase {
 
-    private final BigQueryWriteSettings writeSettings;
+    private final BigQueryWriteClient writeClient;
 
-    public StorageApiStreamingBase(BigQueryWriteSettings writeSettings) {
-        this.writeSettings = writeSettings;
+    private final int retry;
+
+    private final long retryWait;
+
+    private final BigQuery bigQuery;
+
+    public StorageApiStreamingBase(BigQuery bigQuery, int retry, long retryWait, BigQueryWriteSettings writeSettings) {
+        this.bigQuery = bigQuery;
+        this.retry = retry;
+        this.retryWait = retryWait;
+        try {
+            this.writeClient = BigQueryWriteClient.create(writeSettings);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
     }
-    abstract public void initialize(TableName tableName, Schema schema) throws IOException, Descriptors.DescriptorValidationException, InterruptedException;
 
-    abstract public void appendRows(TableName tableName, Schema schema, SinkRecord row) ;
-
-
-//    abstract public Map<TopicPartition, OffsetAndMetadata> getOffsets();
-    public BigQueryWriteSettings getWriteSettings() {
-        return writeSettings;
+    public void initializeAndWriteRecords(
+            TableName tableName,
+            TableId tableId,
+            Schema tableSchema,
+            TableSchema recordSchema,
+            List<Object[]> rows
+    ) {
+        Table table = this.bigQuery.getTable(tableId);
+        if (table == null) {
+            TableInfo tableInfo =
+                    TableInfo.newBuilder(tableId, StandardTableDefinition.of(tableSchema)).build();
+            this.bigQuery.create(tableInfo);
+        }
+        appendRows(tableName, recordSchema, rows);
     }
 
+    abstract public void appendRows(TableName tableName, TableSchema recordSchema, List<Object[]> rows);
+
+    public BigQueryWriteClient getWriteClient() {
+        return this.writeClient;
+    }
 }

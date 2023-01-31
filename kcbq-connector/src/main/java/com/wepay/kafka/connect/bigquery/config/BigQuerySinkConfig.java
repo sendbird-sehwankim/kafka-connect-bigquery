@@ -1094,6 +1094,22 @@ public class BigQuerySinkConfig extends AbstractConfig {
         .filter(l -> !l.isEmpty());
   }
 
+  /**
+   *  Returns the configured project name
+   * @return  Returns the configured project name
+   */
+  public String getProjectConfig() {
+    return Objects.requireNonNull(getString(PROJECT_CONFIG));
+  }
+
+  /**
+   *  Returns the default dataset
+   * @return  Returns the default dataset
+   */
+  public String getDefaultDataSet() {
+    return Objects.requireNonNull(getString(DEFAULT_DATASET_CONFIG));
+  }
+
   protected BigQuerySinkConfig(ConfigDef config, Map<String, String> properties) {
     super(config, properties);
   }
