@@ -24,7 +24,7 @@ if [ -z $CONFLUENT_DIR ]; then
   CONFLUENT_DIR="$BASE_DIR/../../confluent-3.0.0"
 fi
 
-KAFKA_TOPIC='write_api_test3'
+KAFKA_TOPIC='write_api_test14'
 AVRO_SCHEMA='{"type":"record","name":"myrecord","fields":[{"name":"f1","type":"string"}]}'
 REGISTRY_URL='http://localhost:8081'
 BROKER_LIST='localhost:9092'
@@ -97,9 +97,20 @@ while [[ $# -gt 0 ]]; do
   esac
   shift
 done
+export CONFLUENT_DIR=~/confluent-7.3.0
 
-exec "$CONFLUENT_DIR/bin/kafka-avro-console-producer" \
+FILE_NAME='/Users/bhagyashree/Utilities/input.txt'
+i=1
+#while true; do
+while read line; do
+  echo $line
+  i=$((i+1))
+  done < $FILE_NAME | exec "$CONFLUENT_DIR/bin/kafka-avro-console-producer" \
     --broker-list "$BROKER_LIST" \
     --topic "$KAFKA_TOPIC" \
     --property value.schema="$AVRO_SCHEMA" \
     --property schema.registry.url="$REGISTRY_URL"
+
+
+    echo "next iteration"
+#done
