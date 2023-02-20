@@ -11,6 +11,7 @@ import com.wepay.kafka.connect.bigquery.api.KafkaSchemaRecordType;
 import com.wepay.kafka.connect.bigquery.convert.RecordConverter;
 import com.wepay.kafka.connect.bigquery.convert.SchemaConverter;
 import com.wepay.kafka.connect.bigquery.convert.WriteApiRecordConverter;
+import com.wepay.kafka.connect.bigquery.convert.WriteApiSchemaConverter;
 import com.wepay.kafka.connect.bigquery.utils.SinkRecordConverter;
 import io.grpc.Status;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
@@ -23,14 +24,11 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.*;
 
 public class StorageApiDefaultStream extends StorageApiStreamingBase {
     private static final Logger logger = LoggerFactory.getLogger(StorageApiDefaultStream.class);
-
-    private JsonStreamWriter writer;
+    ConcurrentMap<String, JsonStreamWriter> map = new ConcurrentHashMap<>();
 
     public StorageApiDefaultStream(BigQuery bigQuery, int retry, long retryWait, BigQueryWriteSettings writeSettings) {
         super(bigQuery, retry, retryWait, writeSettings);
@@ -38,14 +36,28 @@ public class StorageApiDefaultStream extends StorageApiStreamingBase {
 
     @Override
     public void appendRows(TableName tableName, TableSchema recordSchema, List<Object[]> rows) {
-        JsonStreamWriter writer;
+       // JsonStreamWriter writer;
         JSONArray jsonArr = new JSONArray();
         try {
-            writer = JsonStreamWriter.newBuilder(tableName.toString(), recordSchema, getWriteClient()).build();
+            if(!map.containsKey(tableName.toString())) {
+                if(recordSchema == null) {
+                    JSONObject convertedRecord = (JSONObject) rows.get(0)[1];
+                    recordSchema = new WriteApiSchemaConverter().convertSchemaless(convertedRecord);
+                }
+                map.putIfAbsent(tableName.toString(),JsonStreamWriter.newBuilder(tableName.toString(), recordSchema, getWriteClient()).build());
+            }
+
+        } catch (Descriptors.DescriptorValidationException | IOException | InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+        JsonStreamWriter writer = map.get(tableName.toString());
+        try{
             rows.forEach(item -> jsonArr.put(item[1]));
+            //long identifier = System.nanoTime();
+            logger.debug("Sending records to write Api");
             ApiFuture<AppendRowsResponse> response = writer.append(jsonArr);
             AppendRowsResponse writeResult = response.get();
-            logger.info("Result : " + writeResult);
+           // logger.debug("Result received "+identifier);
             if (writeResult.hasError()) {
                 logger.info("Error Status : " + writeResult.getError());
                 if (writeResult.getRowErrorsCount() > 0) {

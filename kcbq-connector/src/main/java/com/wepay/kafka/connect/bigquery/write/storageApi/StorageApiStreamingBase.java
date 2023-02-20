@@ -6,9 +6,13 @@ import com.google.auth.Credentials;
 import com.google.cloud.bigquery.*;
 import com.google.cloud.bigquery.storage.v1.*;
 import com.google.protobuf.Descriptors;
+import com.wepay.kafka.connect.bigquery.api.SchemaRetriever;
+import com.wepay.kafka.connect.bigquery.convert.BigQuerySchemaConverter;
+import com.wepay.kafka.connect.bigquery.convert.WriteApiSchemaConverter;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.sink.SinkRecord;
+import org.json.JSONObject;
 
 import java.io.IOException;
 import java.util.List;
@@ -39,15 +43,39 @@ public abstract class StorageApiStreamingBase {
     public void initializeAndWriteRecords(
             TableName tableName,
             TableId tableId,
-            Schema tableSchema,
-            TableSchema recordSchema,
-            List<Object[]> rows
+            List<Object[]> rows,
+            SchemaRetriever schemaRetriever
     ) {
-        Table table = this.bigQuery.getTable(tableId);
-        if (table == null) {
-            TableInfo tableInfo =
-                    TableInfo.newBuilder(tableId, StandardTableDefinition.of(tableSchema)).build();
-            this.bigQuery.create(tableInfo);
+
+        Schema tableSchema = null;
+        SinkRecord initialRecord = (SinkRecord) rows.get(0)[0];
+        org.apache.kafka.connect.data.Schema valueSchema = schemaRetriever.retrieveValueSchema(initialRecord);
+        TableSchema recordSchema;
+        if(valueSchema != null) {
+            tableSchema = new BigQuerySchemaConverter(false, true)
+                    .convertSchema(valueSchema);
+            recordSchema = new WriteApiSchemaConverter().convertSchema(tableSchema);
+        } else {
+            recordSchema = null;
+        }
+
+        // fails without lock, fix by locking
+        if (tableSchema != null) {
+            Table table = this.bigQuery.getTable(tableId);
+            if (table == null) {
+                synchronized (this) {
+                    if (this.bigQuery.getTable(tableId) == null) {
+                        TableInfo tableInfo =
+                                TableInfo.newBuilder(tableId, StandardTableDefinition.of(tableSchema)).build();
+                        try {
+                            this.bigQuery.create(tableInfo);
+                        } catch (BigQueryException exception) {
+                            // if already exists, move on
+                        }
+
+                    }
+                }
+            }
         }
         appendRows(tableName, recordSchema, rows);
     }

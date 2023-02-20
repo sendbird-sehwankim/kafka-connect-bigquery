@@ -22,11 +22,13 @@ package com.wepay.kafka.connect.bigquery;
 import com.google.api.gax.rpc.FixedHeaderProvider;
 import com.google.api.gax.rpc.HeaderProvider;
 import com.google.auth.oauth2.GoogleCredentials;
+import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.BigQueryOptions;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageOptions;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Lists;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
 import com.wepay.kafka.connect.bigquery.utils.Version;
@@ -131,7 +133,10 @@ public abstract class GcpClientBuilder<Client> {
     }
 
     try {
-      return GoogleCredentials.fromStream(credentialsStream);
+      return GoogleCredentials.fromStream(credentialsStream).createScoped(Lists.newArrayList(
+              "https://www.googleapis.com/auth/bigquery",
+              "https://www.googleapis.com/auth/bigquery.insertdata",
+              "https://www.googleapis.com/auth/cloud-platform"));
     } catch (IOException e) {
       throw new BigQueryConnectException("Failed to create credentials from input stream", e);
     }

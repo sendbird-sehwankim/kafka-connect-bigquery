@@ -260,17 +260,15 @@ public class BigQuerySinkTask extends SinkTask {
     Map<String, StorageWriteApiBuilder> storageApiBuilders = new HashMap<>();
     for (SinkRecord record : records) {
       if (record.value() != null || config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)) {
-        PartitionedTableId table = getRecordTable(record);
-        if(useStorageApi) {
 
-          if(!storageApiBuilders.containsKey(record.topic())) {
+        if (useStorageApi) {
+
+          if (!storageApiBuilders.containsKey(record.topic())) {
 
             TableId tableId = TableId.of(config.getProjectConfig(), config.getDefaultDataSet(), record.topic());
-            Schema tableSchema = new BigQuerySchemaConverter(false, true)
-                    .convertSchema(schemaRetriever.retrieveValueSchema(record));
             StorageWriteApiBuilder builder = new StorageWriteApiBuilder(
                     storageApiWriter,
-                    tableSchema,
+                    schemaRetriever,
                     tableId,
                     storageApiRecordConverter
             );
@@ -278,40 +276,49 @@ public class BigQuerySinkTask extends SinkTask {
           }
 
           storageApiBuilders.get(record.topic()).addRow(record);
-          continue;
-        }else if (!tableWriterBuilders.containsKey(table)) {
-          TableWriterBuilder tableWriterBuilder;
-          if (config.getList(BigQuerySinkConfig.ENABLE_BATCH_CONFIG).contains(record.topic())) {
-            String topic = record.topic();
-            long offset = record.kafkaOffset();
-            String gcsBlobName = topic + "_" + uuid + "_" + Instant.now().toEpochMilli() + "_" + offset;
-            String gcsFolderName = config.getString(BigQuerySinkConfig.GCS_FOLDER_NAME_CONFIG);
-            if (gcsFolderName != null && !"".equals(gcsFolderName)) {
-              gcsBlobName = gcsFolderName + "/" + gcsBlobName;
+        } else {
+          PartitionedTableId table = getRecordTable(record);
+          if (!tableWriterBuilders.containsKey(table)) {
+            TableWriterBuilder tableWriterBuilder;
+            if (config.getList(BigQuerySinkConfig.ENABLE_BATCH_CONFIG).contains(record.topic())) {
+              String topic = record.topic();
+              long offset = record.kafkaOffset();
+              String gcsBlobName = topic + "_" + uuid + "_" + Instant.now().toEpochMilli() + "_" + offset;
+              String gcsFolderName = config.getString(BigQuerySinkConfig.GCS_FOLDER_NAME_CONFIG);
+              if (gcsFolderName != null && !"".equals(gcsFolderName)) {
+                gcsBlobName = gcsFolderName + "/" + gcsBlobName;
+              }
+              tableWriterBuilder = new GCSBatchTableWriter.Builder(
+                      gcsToBQWriter,
+                      table.getBaseTableId(),
+                      config.getString(BigQuerySinkConfig.GCS_BUCKET_NAME_CONFIG),
+                      gcsBlobName,
+                      recordConverter);
+            } else {
+              TableWriter.Builder simpleTableWriterBuilder =
+                      new TableWriter.Builder(bigQueryWriter, table, recordConverter);
+              if (upsertDelete) {
+                simpleTableWriterBuilder.onFinish(rows ->
+                        mergeBatches.onRowWrites(table.getBaseTableId(), rows));
+              }
+              tableWriterBuilder = simpleTableWriterBuilder;
             }
-            tableWriterBuilder = new GCSBatchTableWriter.Builder(
-                gcsToBQWriter,
-                table.getBaseTableId(),
-                config.getString(BigQuerySinkConfig.GCS_BUCKET_NAME_CONFIG),
-                gcsBlobName,
-                recordConverter);
-          } else {
-            TableWriter.Builder simpleTableWriterBuilder =
-                new TableWriter.Builder(bigQueryWriter, table, recordConverter);
-            if (upsertDelete) {
-              simpleTableWriterBuilder.onFinish(rows ->
-                  mergeBatches.onRowWrites(table.getBaseTableId(), rows));
-            }
-            tableWriterBuilder = simpleTableWriterBuilder;
+            tableWriterBuilders.put(table, tableWriterBuilder);
           }
-          tableWriterBuilders.put(table, tableWriterBuilder);
+          tableWriterBuilders.get(table).addRow(record, table.getBaseTableId());
+
         }
-        tableWriterBuilders.get(table).addRow(record, table.getBaseTableId());
+
+
       }
     }
-
+    logger.debug("Done adding {} records in the sink.", records.size());
     // add tableWriters to the executor work queue
     for (TableWriterBuilder builder : tableWriterBuilders.values()) {
+      executor.execute(builder.build());
+    }
+
+    for (StorageWriteApiBuilder builder : storageApiBuilders.values()) {
       executor.execute(builder.build());
     }
 
@@ -428,7 +435,6 @@ public class BigQuerySinkTask extends SinkTask {
     int retry = config.getInt(BigQuerySinkConfig.BIGQUERY_RETRY_CONFIG);
     long retryWait = config.getLong(BigQuerySinkConfig.BIGQUERY_RETRY_WAIT_CONFIG);
     BigQuery bigQuery = getBigQuery();
-
     if (upsertDelete) {
       return new UpsertDeleteBigQueryWriter(bigQuery,
                                             getSchemaManager(),
@@ -525,12 +531,22 @@ public class BigQuerySinkTask extends SinkTask {
           new MergeQueries(config, mergeBatches, executor, getBigQuery(), getSchemaManager(), context);
       maybeStartMergeFlushTask();
     } else if(useStorageApi) {
+      schemaRetriever = config.getSchemaRetriever();
       int retry = config.getInt(BigQuerySinkConfig.BIGQUERY_RETRY_CONFIG);
       long retryWait = config.getLong(BigQuerySinkConfig.BIGQUERY_RETRY_WAIT_CONFIG);
       BigQuery bigQuery = getBigQuery();
       BigQueryWriteSettings writeSettings = new BigQueryWriteSettingsBuilder().withConfig(config).build();
       storageApiRecordConverter = new WriteApiRecordConverter();
-      storageApiWriter = new StorageApiDefaultStream(bigQuery, retry, retryWait, writeSettings);
+      if(config.getBoolean(BigQuerySinkConfig.ENABLE_BATCH_MODE_CONFIG)) {
+        storageApiWriter = new StorageApiPendingStream(bigQuery, retry, retryWait, writeSettings);
+        StorageApiBatchModeHandler batchHandler = new StorageApiBatchModeHandler((StorageApiApplicationStreams)storageApiWriter);
+        loadExecutor = Executors.newScheduledThreadPool(1);
+        int intervalSec = config.getInt(BigQuerySinkConfig.BATCH_LOAD_INTERVAL_SEC_CONFIG);
+        loadExecutor.scheduleAtFixedRate(batchHandler::createNewStream, intervalSec, intervalSec, TimeUnit.SECONDS);
+      } else {
+        storageApiWriter = new StorageApiDefaultStream(bigQuery, retry, retryWait, writeSettings);
+      }
+
     }
 
     recordConverter = getConverter(config);

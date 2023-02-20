@@ -83,7 +83,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
 
   public static final String BATCH_LOAD_INTERVAL_SEC_CONFIG =             "batchLoadIntervalSec";
   private static final ConfigDef.Type BATCH_LOAD_INTERVAL_SEC_TYPE =      ConfigDef.Type.INT;
-  private static final Integer BATCH_LOAD_INTERVAL_SEC_DEFAULT =          120;
+  private static final Integer BATCH_LOAD_INTERVAL_SEC_DEFAULT =          60;
   private static final ConfigDef.Importance BATCH_LOAD_INTERVAL_SEC_IMPORTANCE =
       ConfigDef.Importance.LOW;
   private static final String BATCH_LOAD_INTERVAL_SEC_DOC =
@@ -336,6 +336,16 @@ public class BigQuerySinkConfig extends AbstractConfig {
   private static final ConfigDef.Importance USE_STORAGE_WRITE_API_IMPORTANCE = ConfigDef.Importance.LOW;
   private static final String USE_STORAGE_WRITE_API_DOC =
           "Use Google's New Storage Write API for data streaming. Not available for batch/upsert mode";
+
+  public static final String ENABLE_BATCH_MODE_CONFIG = "enableBatchMode";
+
+  private static final ConfigDef.Type ENABLE_BATCH_MODE_TYPE =             ConfigDef.Type.BOOLEAN;
+  public static final boolean ENABLE_BATCH_MODE_DEFAULT =                  false;
+  private static final ConfigDef.Importance ENABLE_BATCH_MODE_IMPORTANCE = ConfigDef.Importance.LOW;
+  private static final String ENABLE_BATCH_MODE_DOC =
+          "Use Google's New Storage Write API with batch mode";
+
+
   public static final String DELETE_ENABLED_CONFIG =                    "deleteEnabled";
   private static final ConfigDef.Type DELETE_ENABLED_TYPE =             ConfigDef.Type.BOOLEAN;
   public static final boolean DELETE_ENABLED_DEFAULT =                  false;
@@ -829,16 +839,22 @@ public class BigQuerySinkConfig extends AbstractConfig {
             BIGQUERY_PARTITION_EXPIRATION_IMPORTANCE,
             BIGQUERY_PARTITION_EXPIRATION_DOC
         ).define(
-                    USE_STORAGE_WRITE_API_CONFIG,
-                    USE_STORAGE_WRITE_API_TYPE,
-                    USE_STORAGE_WRITE_API_DEFAULT,
-                    USE_STORAGE_WRITE_API_IMPORTANCE,
-                    USE_STORAGE_WRITE_API_DOC
-            ).defineInternal(
-                    CONNECTOR_RUNTIME_PROVIDER_CONFIG,
-                    CONNECTOR_RUNTIME_PROVIDER_TYPE,
-                    CONNECTOR_RUNTIME_PROVIDER_DEFAULT,
-                    CONNECTOR_RUNTIME_PROVIDER_IMPORTANCE
+            USE_STORAGE_WRITE_API_CONFIG,
+            USE_STORAGE_WRITE_API_TYPE,
+            USE_STORAGE_WRITE_API_DEFAULT,
+            USE_STORAGE_WRITE_API_IMPORTANCE,
+            USE_STORAGE_WRITE_API_DOC
+        ).define(
+            ENABLE_BATCH_MODE_CONFIG,
+            ENABLE_BATCH_MODE_TYPE,
+                    ENABLE_BATCH_MODE_DEFAULT,
+                    ENABLE_BATCH_MODE_IMPORTANCE,
+                    ENABLE_BATCH_MODE_DOC
+        ).defineInternal(
+            CONNECTOR_RUNTIME_PROVIDER_CONFIG,
+            CONNECTOR_RUNTIME_PROVIDER_TYPE,
+            CONNECTOR_RUNTIME_PROVIDER_DEFAULT,
+            CONNECTOR_RUNTIME_PROVIDER_IMPORTANCE
         );
   }
 
