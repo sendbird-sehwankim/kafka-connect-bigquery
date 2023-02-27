@@ -8,6 +8,7 @@ of [Apache Kafka Connect]. For a comprehensive list of configuration options, se
 
 ## History
 
+
 This connector was [originally developed by WePay](https://github.com/wepay/kafka-connect-bigquery).
 In late 2020 the project moved to [Confluent](https://github.com/confluentinc/kafka-connect-bigquery),
 with both companies taking on maintenance duties. All new activity such as filing issues and opening
