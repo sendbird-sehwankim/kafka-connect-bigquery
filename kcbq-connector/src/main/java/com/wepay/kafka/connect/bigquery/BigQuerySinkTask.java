@@ -60,13 +60,10 @@ import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.util.*;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static com.wepay.kafka.connect.bigquery.utils.TableNameUtils.intTable;
@@ -93,6 +90,9 @@ public class BigQuerySinkTask extends SinkTask {
   private boolean sanitize;
 
   private boolean useStorageApi;
+  private boolean useStorageApiBatchMode;
+
+  private StorageApiBatchModeHandler batchHandler;
   private boolean upsertDelete;
   private MergeBatches mergeBatches;
   private MergeQueries mergeQueries;
@@ -160,6 +160,7 @@ public class BigQuerySinkTask extends SinkTask {
 
     try {
       executor.awaitCurrentTasks();
+      logger.info("All offsets should now be available");
     } catch (InterruptedException err) {
       throw new ConnectException("Interrupted while waiting for write tasks to complete.", err);
     }
@@ -173,6 +174,10 @@ public class BigQuerySinkTask extends SinkTask {
     if (upsertDelete) {
       Map<TopicPartition, OffsetAndMetadata> result = mergeBatches.latestOffsets();
       checkQueueSize();
+      return result;
+    } else if(useStorageApiBatchMode) {
+      Map<TopicPartition, OffsetAndMetadata> result = batchHandler.getCommitableOffsets();
+      logger.info("Commitable Offset list : " + result.toString());
       return result;
     }
 
@@ -252,7 +257,7 @@ public class BigQuerySinkTask extends SinkTask {
     // Periodically poll for errors here instead of doing a stop-the-world check in flush()
     executor.maybeThrowEncounteredError();
 
-    logger.debug("Putting {} records in the sink.", records.size());
+    logger.info("Putting {} records in the sink.", records.size());
 
     // create tableWriters
     Map<PartitionedTableId, TableWriterBuilder> tableWriterBuilders = new HashMap<>();
@@ -270,7 +275,8 @@ public class BigQuerySinkTask extends SinkTask {
                     storageApiWriter,
                     schemaRetriever,
                     tableId,
-                    storageApiRecordConverter
+                    storageApiRecordConverter,
+                    batchHandler
             );
             storageApiBuilders.put(record.topic(), builder);
           }
@@ -312,7 +318,7 @@ public class BigQuerySinkTask extends SinkTask {
 
       }
     }
-    logger.debug("Done adding {} records in the sink.", records.size());
+    logger.info("Done adding {} records in the sink.", records.size());
     // add tableWriters to the executor work queue
     for (TableWriterBuilder builder : tableWriterBuilders.values()) {
       executor.execute(builder.build());
@@ -531,6 +537,7 @@ public class BigQuerySinkTask extends SinkTask {
           new MergeQueries(config, mergeBatches, executor, getBigQuery(), getSchemaManager(), context);
       maybeStartMergeFlushTask();
     } else if(useStorageApi) {
+      logger.info("New Storage Api is enabled");
       schemaRetriever = config.getSchemaRetriever();
       int retry = config.getInt(BigQuerySinkConfig.BIGQUERY_RETRY_CONFIG);
       long retryWait = config.getLong(BigQuerySinkConfig.BIGQUERY_RETRY_WAIT_CONFIG);
@@ -538,9 +545,11 @@ public class BigQuerySinkTask extends SinkTask {
       BigQueryWriteSettings writeSettings = new BigQueryWriteSettingsBuilder().withConfig(config).build();
       storageApiRecordConverter = new WriteApiRecordConverter();
       if(config.getBoolean(BigQuerySinkConfig.ENABLE_BATCH_MODE_CONFIG)) {
+        useStorageApiBatchMode = true;
         storageApiWriter = new StorageApiPendingStream(bigQuery, retry, retryWait, writeSettings);
-        StorageApiBatchModeHandler batchHandler = new StorageApiBatchModeHandler((StorageApiApplicationStreams)storageApiWriter);
+        batchHandler = new StorageApiBatchModeHandler((StorageApiApplicationStreams)storageApiWriter, config.getTopics(), config.getDefaultDataSet(), config.getProjectConfig());
         loadExecutor = Executors.newScheduledThreadPool(1);
+        logger.info("Storage Api in batch Mode started");
         int intervalSec = config.getInt(BigQuerySinkConfig.BATCH_LOAD_INTERVAL_SEC_CONFIG);
         loadExecutor.scheduleAtFixedRate(batchHandler::createNewStream, intervalSec, intervalSec, TimeUnit.SECONDS);
       } else {
@@ -602,6 +611,9 @@ public class BigQuerySinkTask extends SinkTask {
           logger.debug("Deleting {}", intTable(table));
           getBigQuery().delete(table);
         });
+      } else if(useStorageApiBatchMode) {
+        // close streams as
+        batchHandler.shutdown();
       }
     } finally {
       stopped = true;

@@ -1118,6 +1118,10 @@ public class BigQuerySinkConfig extends AbstractConfig {
     return Objects.requireNonNull(getString(PROJECT_CONFIG));
   }
 
+
+  public List<String> getTopics() {
+    return Objects.requireNonNull(getList(TOPICS_CONFIG));
+  }
   /**
    *  Returns the default dataset
    * @return  Returns the default dataset

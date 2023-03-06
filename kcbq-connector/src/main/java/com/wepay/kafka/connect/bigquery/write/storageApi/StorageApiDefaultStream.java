@@ -35,7 +35,7 @@ public class StorageApiDefaultStream extends StorageApiStreamingBase {
     }
 
     @Override
-    public void appendRows(TableName tableName, TableSchema recordSchema, List<Object[]> rows) {
+    public void appendRows(TableName tableName, TableSchema recordSchema, List<Object[]> rows, String streamName) {
        // JsonStreamWriter writer;
         JSONArray jsonArr = new JSONArray();
         try {
@@ -54,7 +54,7 @@ public class StorageApiDefaultStream extends StorageApiStreamingBase {
         try{
             rows.forEach(item -> jsonArr.put(item[1]));
             //long identifier = System.nanoTime();
-            logger.debug("Sending records to write Api");
+            logger.info("Sending records to write Api");
             ApiFuture<AppendRowsResponse> response = writer.append(jsonArr);
             AppendRowsResponse writeResult = response.get();
            // logger.debug("Result received "+identifier);

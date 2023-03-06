@@ -15,11 +15,14 @@ import org.apache.kafka.connect.sink.SinkRecord;
 import org.json.JSONObject;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public abstract class StorageApiStreamingBase {
 
+    private Set<TableId> ids = new HashSet<>();
     private final BigQueryWriteClient writeClient;
 
     private final int retry;
@@ -44,7 +47,8 @@ public abstract class StorageApiStreamingBase {
             TableName tableName,
             TableId tableId,
             List<Object[]> rows,
-            SchemaRetriever schemaRetriever
+            SchemaRetriever schemaRetriever,
+            String streamName
     ) {
 
         Schema tableSchema = null;
@@ -60,7 +64,8 @@ public abstract class StorageApiStreamingBase {
         }
 
         // fails without lock, fix by locking
-        if (tableSchema != null) {
+        if (tableSchema != null && !ids.contains(tableId)) {
+            ids.add(tableId);
             Table table = this.bigQuery.getTable(tableId);
             if (table == null) {
                 synchronized (this) {
@@ -77,10 +82,10 @@ public abstract class StorageApiStreamingBase {
                 }
             }
         }
-        appendRows(tableName, recordSchema, rows);
+        appendRows(tableName, recordSchema, rows, streamName);
     }
 
-    abstract public void appendRows(TableName tableName, TableSchema recordSchema, List<Object[]> rows);
+    abstract public void appendRows(TableName tableName, TableSchema recordSchema, List<Object[]> rows, String streamName);
 
     public BigQueryWriteClient getWriteClient() {
         return this.writeClient;
