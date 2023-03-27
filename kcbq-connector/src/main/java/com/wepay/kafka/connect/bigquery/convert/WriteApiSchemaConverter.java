@@ -71,6 +71,7 @@ public class WriteApiSchemaConverter implements SchemaConverter<TableSchema, Sch
             fieldBuilder.setType(TableFieldSchema.Type.DOUBLE);
         } else if(value instanceof Map) {
             ((Map<String, Object>) value).forEach((k,v) -> fieldBuilder.addFields(convertMapEntrytoFieldSchema(k,v)));
+            fieldBuilder.setType(TableFieldSchema.Type.STRUCT);
         }
 
         return fieldBuilder.build();

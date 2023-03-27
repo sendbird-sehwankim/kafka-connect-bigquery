@@ -119,3 +119,8 @@ while read line; do
 done
 
 
+while true; do
+ while read line; do
+echo $line
+done < ~/Utilities/order.txt | ./kafka-console-producer --topic compare_api_01 --bootstrap-server=localhost:9092
+done

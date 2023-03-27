@@ -58,13 +58,12 @@ public abstract class StorageApiStreamingBase {
         if(valueSchema != null) {
             tableSchema = new BigQuerySchemaConverter(false, true)
                     .convertSchema(valueSchema);
-            recordSchema = new WriteApiSchemaConverter().convertSchema(tableSchema);
         } else {
-            recordSchema = null;
+            tableSchema = this.bigQuery.getTable(tableId).getDefinition().getSchema();
         }
-
+        recordSchema = new WriteApiSchemaConverter().convertSchema(tableSchema);
         // fails without lock, fix by locking
-        if (tableSchema != null && !ids.contains(tableId)) {
+        if (!ids.contains(tableId)) {
             ids.add(tableId);
             Table table = this.bigQuery.getTable(tableId);
             if (table == null) {
