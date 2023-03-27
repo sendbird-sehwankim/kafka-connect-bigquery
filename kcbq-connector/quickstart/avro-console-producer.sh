@@ -24,7 +24,7 @@ if [ -z $CONFLUENT_DIR ]; then
   CONFLUENT_DIR="$BASE_DIR/../../confluent-3.0.0"
 fi
 
-KAFKA_TOPIC='kcbq-quickstart'
+KAFKA_TOPIC='write_api_test3'
 AVRO_SCHEMA='{"type":"record","name":"myrecord","fields":[{"name":"f1","type":"string"}]}'
 REGISTRY_URL='http://localhost:8081'
 BROKER_LIST='localhost:9092'

@@ -73,7 +73,7 @@ public class SchemaManagerTest {
   private TableId tableId = TableId.of(testDatasetName, testTableName);
 
   private SchemaRetriever mockSchemaRetriever;
-  private SchemaConverter<com.google.cloud.bigquery.Schema> mockSchemaConverter;
+  private SchemaConverter<com.google.cloud.bigquery.Schema, Schema> mockSchemaConverter;
   private BigQuery mockBigQuery;
   private Schema mockKafkaSchema;
   private com.google.cloud.bigquery.Schema fakeBigQuerySchema;
@@ -82,7 +82,7 @@ public class SchemaManagerTest {
   public void before() {
     mockSchemaRetriever = mock(SchemaRetriever.class);
     mockSchemaConverter =
-        (SchemaConverter<com.google.cloud.bigquery.Schema>) mock(SchemaConverter.class);
+        (SchemaConverter<com.google.cloud.bigquery.Schema, Schema>) mock(SchemaConverter.class);
     mockBigQuery = mock(BigQuery.class);
     mockKafkaSchema = mock(Schema.class);
     fakeBigQuerySchema = com.google.cloud.bigquery.Schema.of(
@@ -741,7 +741,7 @@ public class SchemaManagerTest {
   }
 
   private SchemaManager createSchemaManager(
-      boolean allowNewFields, boolean allowFieldRelaxation, boolean allowUnionization, boolean sanitizeFieldNames, SchemaConverter<com.google.cloud.bigquery.Schema> converter) {
+      boolean allowNewFields, boolean allowFieldRelaxation, boolean allowUnionization, boolean sanitizeFieldNames, SchemaConverter<com.google.cloud.bigquery.Schema, Schema> converter) {
     return new SchemaManager(new IdentitySchemaRetriever(), converter, mockBigQuery,
         allowNewFields, allowFieldRelaxation, allowUnionization, sanitizeFieldNames,
         Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
