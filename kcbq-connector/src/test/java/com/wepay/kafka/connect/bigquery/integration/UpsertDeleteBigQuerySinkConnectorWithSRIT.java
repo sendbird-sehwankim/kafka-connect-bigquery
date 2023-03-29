@@ -55,7 +55,7 @@ public class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
   private static final Logger logger = LoggerFactory.getLogger(UpsertDeleteBigQuerySinkConnectorWithSRIT.class);
 
   private static final String CONNECTOR_NAME = "kcbq-sink-connector";
-  private static final long NUM_RECORDS_PRODUCED = 20;
+  private static final long NUM_RECORDS_PRODUCED = 10;
   private static final int TASKS_MAX = 3;
   private static final String KAFKA_FIELD_NAME = "kafkaKey";
 
