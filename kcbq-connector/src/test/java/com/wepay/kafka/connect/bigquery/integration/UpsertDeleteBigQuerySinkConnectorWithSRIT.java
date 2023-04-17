@@ -42,6 +42,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
@@ -196,6 +197,7 @@ public class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
     // wait for tasks to write to BigQuery and commit offsets for their records
     waitForCommittedRecords(CONNECTOR_NAME, Collections.singleton(topic), NUM_RECORDS_PRODUCED, TASKS_MAX, COMMIT_MAX_DURATION_MS);
 
+
     List<List<Object>> allRows = readAllRows(bigQuery, table, KAFKA_FIELD_NAME + ".k1");
     List<List<Object>> expectedRows = LongStream.range(0, NUM_RECORDS_PRODUCED / 2)
         .mapToObj(i -> Arrays.asList(
@@ -267,6 +269,7 @@ public class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
 
     // wait for tasks to write to BigQuery and commit offsets for their records
     waitForCommittedRecords(CONNECTOR_NAME, Collections.singleton(topic), NUM_RECORDS_PRODUCED, TASKS_MAX, COMMIT_MAX_DURATION_MS);
+
 
     // Since we have multiple rows per key, order by key and the f3 field (which should be
     // monotonically increasing in insertion order)
