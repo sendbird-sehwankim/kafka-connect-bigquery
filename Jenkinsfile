@@ -23,5 +23,4 @@ common {
   publish = false
   downStreamValidate = false
   sonarqubeScannerEnable = true
-  sonarqubeQualityCheck = true
 }
