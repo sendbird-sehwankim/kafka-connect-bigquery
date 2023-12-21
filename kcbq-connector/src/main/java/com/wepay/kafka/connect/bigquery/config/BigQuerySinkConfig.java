@@ -500,6 +500,14 @@ public class BigQuerySinkConfig extends AbstractConfig {
           + " and enable timestamp partitioning for each table. Leave this configuration blank,"
           + " to enable ingestion time partitioning for each table.";
 
+  public static final String BIGQUERY_REQUIRE_TIMESTAMP_PARTITION_FILTER_CONFIG = "requireTimestampPartitionFilter";
+  private static final ConfigDef.Type BIGQUERY_REQUIRE_TIMESTAMP_PARTITION_FILTER_TYPE = ConfigDef.Type.BOOLEAN;
+  private static final Boolean BIGQUERY_REQUIRE_TIMESTAMP_PARTITION_FILTER_DEFAULT = false;
+  private static final ConfigDef.Importance BIGQUERY_REQUIRE_TIMESTAMP_PARTITION_FILTER_IMPORTANCE =
+          ConfigDef.Importance.LOW;
+  private static final String BIGQUERY_REQUIRE_TIMESTAMP_PARTITION_FILTER_DOC =
+          "The boolean value for requirePartitionFilter option on BigQuery table.";
+
   public static final String BIGQUERY_CLUSTERING_FIELD_NAMES_CONFIG = "clusteringPartitionFieldNames";
   private static final ConfigDef.Type BIGQUERY_CLUSTERING_FIELD_NAMES_TYPE = ConfigDef.Type.LIST;
   private static final List<String> BIGQUERY_CLUSTERING_FIELD_NAMES_DEFAULT = null;
@@ -855,6 +863,12 @@ public class BigQuerySinkConfig extends AbstractConfig {
               }
             }
         ).define(
+            BIGQUERY_REQUIRE_TIMESTAMP_PARTITION_FILTER_CONFIG,
+            BIGQUERY_REQUIRE_TIMESTAMP_PARTITION_FILTER_TYPE,
+            BIGQUERY_REQUIRE_TIMESTAMP_PARTITION_FILTER_DEFAULT,
+            BIGQUERY_REQUIRE_TIMESTAMP_PARTITION_FILTER_IMPORTANCE,
+            BIGQUERY_REQUIRE_TIMESTAMP_PARTITION_FILTER_DOC
+        ).define(
             BIGQUERY_PARTITION_EXPIRATION_CONFIG,
             BIGQUERY_PARTITION_EXPIRATION_TYPE,
             BIGQUERY_PARTITION_EXPIRATION_DEFAULT,
@@ -1151,6 +1165,10 @@ public class BigQuerySinkConfig extends AbstractConfig {
    */
   public Optional<String> getTimestampPartitionFieldName() {
     return Optional.ofNullable(getString(BIGQUERY_TIMESTAMP_PARTITION_FIELD_NAME_CONFIG));
+  }
+
+  public Optional<Boolean> getRequireTimePartitionFilter() {
+    return Optional.ofNullable(getBoolean(BIGQUERY_REQUIRE_TIMESTAMP_PARTITION_FILTER_CONFIG));
   }
 
   /**

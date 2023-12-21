@@ -74,6 +74,7 @@ public class SchemaManager {
   private final Optional<Long> partitionExpiration;
   private final Optional<List<String>> clusteringFieldName;
   private final Optional<TimePartitioning.Type> timePartitioningType;
+  private final Optional<Boolean> requirePartitionFilter;
   private final boolean intermediateTables;
   private final ConcurrentMap<TableId, Object> tableCreateLocks;
   private final ConcurrentMap<TableId, Object> tableUpdateLocks;
@@ -112,7 +113,8 @@ public class SchemaManager {
       Optional<String> timestampPartitionFieldName,
       Optional<Long> partitionExpiration,
       Optional<List<String>> clusteringFieldName,
-      Optional<TimePartitioning.Type> timePartitioningType) {
+      Optional<TimePartitioning.Type> timePartitioningType,
+      Optional<Boolean> requirePartitionFilter) {
     this(
         schemaRetriever,
         schemaConverter,
@@ -127,6 +129,7 @@ public class SchemaManager {
         partitionExpiration,
         clusteringFieldName,
         timePartitioningType,
+        requirePartitionFilter,
         false,
         new ConcurrentHashMap<>(),
         new ConcurrentHashMap<>(),
@@ -147,6 +150,7 @@ public class SchemaManager {
       Optional<Long> partitionExpiration,
       Optional<List<String>> clusteringFieldName,
       Optional<TimePartitioning.Type> timePartitioningType,
+      Optional<Boolean> requirePartitionFilter,
       boolean intermediateTables,
       ConcurrentMap<TableId, Object> tableCreateLocks,
       ConcurrentMap<TableId, Object> tableUpdateLocks,
@@ -164,6 +168,7 @@ public class SchemaManager {
     this.partitionExpiration = partitionExpiration;
     this.clusteringFieldName = clusteringFieldName;
     this.timePartitioningType = timePartitioningType;
+    this.requirePartitionFilter = requirePartitionFilter;
     this.intermediateTables = intermediateTables;
     this.tableCreateLocks = tableCreateLocks;
     this.tableUpdateLocks = tableUpdateLocks;
@@ -185,6 +190,7 @@ public class SchemaManager {
         partitionExpiration,
         clusteringFieldName,
         timePartitioningType,
+        requirePartitionFilter,
         true,
         tableCreateLocks,
         tableUpdateLocks,
@@ -585,7 +591,8 @@ public class SchemaManager {
         TimePartitioning.Builder timePartitioningBuilder = TimePartitioning.of(partitioningType).toBuilder();
         timestampPartitionFieldName.ifPresent(timePartitioningBuilder::setField);
         partitionExpiration.ifPresent(timePartitioningBuilder::setExpirationMs);
-  
+        requirePartitionFilter.ifPresent(timePartitioningBuilder::setRequirePartitionFilter);
+
         builder.setTimePartitioning(timePartitioningBuilder.build());
   
         if (timestampPartitionFieldName.isPresent() && clusteringFieldName.isPresent()) {
